@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการสต็อกวัสดุ | Stock Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config (Supabase Keys - gitignored, ดูตัวอย่างใน config.example.js) -->
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .management-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.5);
+            color: #818cf8;
+        }
+
+        .btn-primary:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: #34d399;
+        }
+
+        .btn-success:hover {
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-danger {
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid rgba(248, 113, 113, 0.5);
+            color: #f87171;
+        }
+
+        .btn-danger:hover {
+            background: rgba(248, 113, 113, 0.3);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #818cf8;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #ffffff;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: #cbd5e1;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.6rem;
+            background: rgba(10, 15, 30, 0.6);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: #ffffff;
+            font-family: 'Kanit', sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #818cf8;
+            background: rgba(10, 15, 30, 0.8);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 2rem;
+            justify-content: flex-end;
+        }
+
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+
+        .stock-table thead {
+            background: rgba(99, 102, 241, 0.1);
+            border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .stock-table th {
+            padding: 1rem;
+            text-align: left;
+            color: #818cf8;
+            font-weight: 600;
+        }
+
+        .stock-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stock-table tr:hover {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-ok {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .status-low {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btn {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn-edit {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .action-btn-edit:hover {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
+        .action-btn-delete {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+
+        .action-btn-delete:hover {
+            background: rgba(248, 113, 113, 0.3);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .search-box input {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.6rem 1rem;
+            background: rgba(10, 15, 30, 0.6);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Kanit', sans-serif;
+        }
+
+        .search-box select {
+            padding: 0.6rem 1rem;
+            background: rgba(10, 15, 30, 0.6);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Kanit', sans-serif;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            color: #818cf8;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: #94a3b8;
+        }
+
+        .empty-state h3 {
+            margin-top: 1rem;
+            color: #cbd5e1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">📦</div>
+            <h1>จัดการสต็อกวัสดุ</h1>
+            <p>ติดตามและจัดการสต็อกวัสดุของคุณ</p>
+            <div id="user-display-area" style="margin-top: 10px; display: flex; justify-content: center;"></div>
+
+            <button onclick="auth.logout()" 
+                style="margin-top: 10px; padding: 0.4rem 1rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-family: 'Kanit'; font-size: 0.8rem; transition: all 0.2s;"
+                onmouseover="this.style.background='rgba(248,113,113,0.2)'"
+                onmouseout="this.style.background='rgba(248,113,113,0.1)'">
+                🚪 ออกจากระบบ
+            </button>
+            <div style="display: flex; gap: 10px; margin-top: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="index.html"
+                    style="padding:0.5rem 1.2rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); color:#818cf8; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(99,102,241,0.3)'"
+                    onmouseout="this.style.background='rgba(99,102,241,0.15)'">
+                    📝 บันทึกออเดอร์
+                </a>
+                <a href="production.html" data-allowed-roles="pdtPerson, Ceo, APRD"
+                    style="padding:0.5rem 1.2rem; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.4); color:#fbbf24; border-radius:10px; text-decoration:none; font-size:0.9rem; transition:all 0.2s;"
+                    onmouseover="this.style.background='rgba(245,158,11,0.3)'"
+                    onmouseout="this.style.background='rgba(245,158,11,0.15)'">
+                    🏭 ฝ่ายผลิต
+                </a>
+            </div>
+        </header>
+
+        <div class="management-container">
+            <!-- Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>📦 จำนวนสินค้าทั้งหมด</h3>
+                    <div class="value" id="totalItems">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>⚠️ สินค้าต่ำกว่าระดับเตือน</h3>
+                    <div class="value" id="lowStockItems">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>� จำนวนชิ้นรวม</h3>
+                    <div class="value" id="totalValue">0</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="openAddModal()">➕ เพิ่มสินค้าใหม่</button>
+                <button class="btn btn-primary" onclick="refreshStockList()">🔄 รีโหลดข้อมูล</button>
+            </div>
+
+            <!-- Search & Filter -->
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="ค้นหาชื่อสินค้า..." onkeyup="searchStocks()">
+                <select id="categoryFilter" onchange="searchStocks()">
+                    <option value="">ทั้งหมด</option>
+                    <option value="general">ทั่วไป</option>
+                    <option value="glass">กระจก</option>
+                    <option value="aluminum">อลูมิเนียม</option>
+                    <option value="tools">เครื่องมือ</option>
+                </select>
+            </div>
+
+            <!-- Stock Table -->
+            <div style="overflow-x: auto;">
+                <table class="stock-table">
+                    <thead>
+                        <tr>
+                            <th>ชื่อสินค้า</th>
+                            <th>รหัส</th>
+                            <th>หมวดหมู่</th>
+                            <th>จำนวน</th>
+                            <th>หน่วย</th>
+                            <th>ขนาด (กว้าง × ยาว)</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody">
+                        <tr>
+                            <td colspan="8" class="loading">⏳ กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>📦 ยังไม่มีสินค้า</h3>
+                <p>กดปุ่ม "เพิ่มสินค้าใหม่" เพื่อเริ่มบันทึกสต็อก</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="stockModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">เพิ่มสินค้าใหม่</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+
+            <form id="stockForm">
+                <div class="form-group">
+                    <label for="productName">ชื่อสินค้า *</label>
+                    <input type="text" id="productName" required placeholder="เช่น กระจกใส 6 มม">
+                </div>
+
+                <div class="form-group">
+                    <label for="productCode">รหัสสินค้า</label>
+                    <input type="text" id="productCode" placeholder="เช่น GLASS-001">
+                </div>
+
+                <div class="form-group">
+                    <label for="category">หมวดหมู่ *</label>
+                    <select id="category" required>
+                        <option value="general">ทั่วไป</option>
+                        <option value="glass">กระจก</option>
+                        <option value="aluminum">อลูมิเนียม</option>
+                        <option value="tools">เครื่องมือ</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="quantity">จำนวน *</label>
+                    <input type="number" id="quantity" required min="0" placeholder="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="unit">หน่วย</label>
+                    <input type="text" id="unit" placeholder="เช่น ม., ชิ้น, กม.">
+                </div>
+
+                <div class="form-group">
+                    <label for="width">กว้าง (ซม./นิ้ว)</label>
+                    <input type="number" id="width" step="0.01" min="0" placeholder="เช่น 100">
+                </div>
+
+                <div class="form-group">
+                    <label for="height">ยาว/สูง (ซม./นิ้ว)</label>
+                    <input type="number" id="height" step="0.01" min="0" placeholder="เช่น 200">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" onclick="closeModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-success">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="stock_management.js"></script>
+</body>
+
+</html>
